@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Acceso · Show Me & Co.</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#14303A;color:#14303A;font:15px/1.5 system-ui,sans-serif}
+.box{background:#fff;border-radius:14px;padding:28px;width:min(380px,92vw);display:grid;gap:12px}
+h1{margin:0;font-size:22px}p{margin:0;color:#5C6C75;font-size:13.5px}
+label{display:grid;gap:4px;font-size:12.5px;color:#5C6C75}
+input{border:1px solid #D8DEE2;border-radius:8px;padding:10px;font:inherit;color:#14303A}
+input:focus-visible,button:focus-visible{outline:2px solid #0F6E6E;outline-offset:2px}
+button{background:#0F6E6E;color:#fff;border:0;border-radius:8px;padding:11px;font:inherit;font-weight:600;cursor:pointer}
+button:disabled{opacity:.6}.err{color:#C0453F;font-size:13px;min-height:18px}
+.lk{background:none;color:#5C6C75;font-weight:400;padding:4px;text-decoration:underline}
+</style></head><body>
+<form class="box" id="f">
+<h1>Leads · Show Me & Co.</h1>
+<p id="m">Inicia sesión para ver tus leads.</p>
+<div id="s1" style="display:grid;gap:12px"><label>Correo<input id="em" type="email" autocomplete="username" required></label>
+<label>Contraseña<input id="pw" type="password" autocomplete="current-password" required></label></div>
+<div id="s2" style="display:none;gap:12px"><label>Código del correo (si trae uno)<input id="cd" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label>
+<button type="button" class="lk" id="bk">Volver</button></div>
+<div class="err" id="er" role="alert"></div>
+<button id="go">Continuar</button>
+</form>
+<script>
+(()=>{
+const U='https://sevdntbmwwsemzpzfbrj.supabase.co',K='sb_publishable_TXW-WO830nK07K9b_102oQ_DVtrDncp',SK='sm_session';
+const $=s=>document.querySelector(s);let step=1;
+async function post(p,b,t){const r=await fetch(U+'/auth/v1/'+p,{method:'POST',headers:{apikey:K,'Content-Type':'application/json',...(t?{Authorization:'Bearer '+t}:{})},body:JSON.stringify(b)});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.msg||j.error_description||j.message||'Error');return j}
+const keep=j=>localStorage.setItem(SK,JSON.stringify({access_token:j.access_token,refresh_token:j.refresh_token,expires_at:j.expires_at||Math.floor(Date.now()/1e3)+j.expires_in}));
+const PATCH=`<script>(()=>{const U=${JSON.stringify(U)},K=${JSON.stringify(K)},SK='sm_session',of=window.fetch.bind(window);let pr=null;
+const ld=()=>{try{return JSON.parse(localStorage.getItem(SK))}catch(e){return null}};
+async function tok(){const s=ld();if(!s)throw new Error('Sesión cerrada');if(s.expires_at*1000-Date.now()>60000)return s.access_token;
+if(!pr)pr=of(U+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:K,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})}).then(async r=>{const j=await r.json();if(!r.ok){localStorage.removeItem(SK);location.reload();throw new Error('Sesión vencida')}localStorage.setItem(SK,JSON.stringify({access_token:j.access_token,refresh_token:j.refresh_token,expires_at:j.expires_at}));return j.access_token}).finally(()=>{pr=null});return pr}
+window.fetch=async(u,o={})=>{if(String(u).startsWith(U+'/rest/v1/')){const t=await tok();o={...o,headers:{...o.headers,apikey:K,Authorization:'Bearer '+t}}}return of(u,o)};
+cfg.url=U;cfg.key=K;saveCfg();
+const _s=save;save=function(){try{const n=new Set(L.map(l=>l.id));JSON.parse(localStorage.getItem(LS)||'[]').forEach(l=>{if(!n.has(l.id))fetch(U+'/rest/v1/leads?id=eq.'+encodeURIComponent(l.id),{method:'DELETE'})})}catch(e){}_s()};
+const b=document.createElement('button');b.className='btn';b.textContent='Cerrar sesión';b.onclick=async()=>{const s=ld();try{if(s)await of(U+'/auth/v1/logout',{method:'POST',headers:{apikey:K,Authorization:'Bearer '+s.access_token}})}catch(e){}localStorage.removeItem(SK);localStorage.removeItem(LS);localStorage.removeItem(LSS);indexedDB.deleteDatabase('leads_showme');location.reload()};
+document.querySelector('.top > div:last-child').appendChild(b);
+pull();})()<\/script>`;
+async function start(){
+ $('#m').textContent='Cargando tus leads…';$('#f').querySelectorAll('input,button').forEach(e=>e.disabled=true);
+ let t=await (await fetch('app.html')).text();
+ if(!/const SEED=/.test(t))t=t.replace('<script>','<script>const SEED=[];');
+ const i=t.lastIndexOf('</body>');t=t.slice(0,i)+PATCH+t.slice(i);
+ document.open();document.write(t);document.close()}
+function ui(s){step=s;$('#s1').style.display=s===1?'grid':'none';$('#s2').style.display=s===2?'grid':'none';
+ $('#m').textContent=s===1?'Inicia sesión para ver tus leads.':'Te enviamos un correo a '+$('#em').value+'. Abre el enlace del correo para entrar (o escribe el código aquí si trae uno).';$('#er').textContent='';$('#go').textContent=s===1?'Continuar':'Entrar'}
+$('#bk').onclick=()=>ui(1);
+$('#f').onsubmit=async e=>{e.preventDefault();const b=$('#go');b.disabled=true;$('#er').textContent='';const email=$('#em').value.trim();
+ try{
+  if(step===1){
+   let j;try{j=await post('token?grant_type=password',{email,password:$('#pw').value})}catch(x){throw new Error('Correo o contraseña incorrectos')}
+   post('logout',{},j.access_token).catch(()=>{});
+   await post('otp',{email,create_user:false});ui(2);$('#cd').focus()
+  }else{
+   const j=await post('verify',{type:'email',email,token:$('#cd').value.trim()});keep(j);await start()
+  }
+ }catch(x){$('#er').textContent=x.message}
+ b.disabled=false};
+(async()=>{let s;
+ const h=new URLSearchParams(location.hash.slice(1));
+ if(h.get('error_description')){$('#er').textContent='El enlace venció o ya se usó. Inicia de nuevo.';history.replaceState(null,'',location.pathname)}
+ else if(h.get('access_token')){try{keep({access_token:h.get('access_token'),refresh_token:h.get('refresh_token'),expires_at:+h.get('expires_at')||0,expires_in:+h.get('expires_in')||3600});history.replaceState(null,'',location.pathname);return await start()}catch(e){}}
+ try{s=JSON.parse(localStorage.getItem(SK))}catch(e){}
+ if(!s)return;
+ try{if(s.expires_at*1000-Date.now()<60000){const j=await post('token?grant_type=refresh_token',{refresh_token:s.refresh_token});keep(j)}await start()}
+ catch(e){localStorage.removeItem(SK);$('#er').textContent='Tu sesión venció, inicia de nuevo.'}})();
+})();
+</script></body></html>
