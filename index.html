@@ -180,6 +180,7 @@ body.dashv .layout{grid-template-columns:minmax(0,1fr)}.lcol{min-width:0}
 <button class="it" id="bTheme"><span class="ic2">🌓</span><span><b>Tema</b><small id="thl">Claro</small></span></button>
 <button class="it" id="bNot"><span class="ic2">🔔</span><span><b>Avisos del navegador</b><small>Con la pestaña abierta</small></span></button>
 <button class="it" id="bRem"><span class="ic2">📲</span><span><b>Recordatorios al celular</b><small>Gmail antes de cada reunión</small></span></button>
+<button class="it" id="bTpl"><span class="ic2">💬</span><span><b>Plantillas de mensajes</b><small>Crea y edita tus textos</small></span></button>
 <button class="it" id="bSet"><span class="ic2">☁️</span><span><b>Conexión Supabase</b><small>URL, clave y sincronizar</small></span></button>
 <button class="it" id="bUndo" style="display:none"><span class="ic2">↩</span><span><b>Deshacer</b><small>Ctrl+Z</small></span></button></div></div>
 </div></header>
@@ -207,7 +208,7 @@ const due=l=>ACTIVE.includes(l.estado)&&l.prox&&l.prox<=today();
 const left=l=>l.prox?Math.round((new Date(l.prox)-new Date(today()))/864e5):null;
 const lbl=l=>{const n=left(l);if(n===null)return '';return n<0?'vencido hace '+(-n)+' d':n===0?'hoy':n===1?'mañana':'en '+n+' días'};
 const TPL=[['Primer mensaje','Hola {nombre}, buenas. Vi {negocio} y creo que una página con sus servicios y un botón de WhatsApp les ayudaría a recibir más clientes en {ciudad}. ¿Te muestro cómo se vería?'],['Seguimiento corto','Hola {nombre}, ¿cómo vas? Paso a ver si alcanzaste a revisar lo que te compartí. Si quieres, te cuento cómo se vería para {negocio}.'],['Después de propuesta','Hola {nombre}, ¿pudiste revisar la propuesta? Si tienes dudas con algo, lo vemos y lo ajustamos para {negocio}.']];
-const fill=l=>String(l.msg||'').replace(/\{nombre\}/g,(l.persona||l.negocio||'').split(' ')[0]).replace(/\{negocio\}/g,l.negocio||'').replace(/\{nicho\}/g,l.nicho||'').replace(/\{ciudad\}/g,(l.ciudad||'').replace(/\s*\(.*\)/,''));
+const fill=l=>fillT(l.msg,l);
 const waMsg=l=>{const u=waURL(l.wa);if(!u)return '';const m=fill(l);return m&&/wa\.me/.test(u)?u+'?text='+encodeURIComponent(m):u};
 const temp=l=>{if(l.estado==='propuesta')return['hot','Caliente'];if(l.estado==='conversacion')return(days(l.envio)??0)<=4?['hot','Caliente']:['warm','Tibio'];if(l.estado==='enviado')return(days(l.envio)??0)<=3?['warm','Tibio']:['cold','Frío'];if(l.estado==='aplazado')return['cold','Frío'];return null};
 const lastAct=l=>(l.hist&&l.hist.length?l.hist[l.hist.length-1].d:l.envio)||'';
@@ -258,7 +259,7 @@ const igURL=v=>v&&v[0]==='@'?'https://instagram.com/'+v.slice(1):'';
 const RULE={enviado:3,conversacion:2,propuesta:2,aplazado:21};
 const add=n=>{const x=new Date(today()+'T12:00');x.setDate(x.getDate()+n);return ymd(x)};
 const log=(l,t)=>(l.hist=l.hist||[]).push({d:today(),t});
-function setEstado(l,e){if(l.estado===e)return;l.estado=e;if(RULE[e]&&!l.envio)l.envio=today();l.prox=RULE[e]?add(RULE[e]):'';log(l,'Estado → '+ST[e])}
+function setEstado(l,e){if(l.estado===e)return;l.estado=e;if(RULE[e]&&!l.envio)l.envio=today();l.prox=RULE[e]?add(RULE[e]):'';log(l,'Estado → '+ST[e]);if((e==='propuesta'||e==='ganado')&&!(+l.valor)&&typeof askValor==='function')setTimeout(()=>askValor(l.id),300)}
 const dup=x=>L.find(l=>l!==x&&((x.ig&&l.ig&&l.ig.toLowerCase()===x.ig.toLowerCase())||(x.wa&&x.wa.replace(/\D/g,'').length>6&&(l.wa||'').replace(/\D/g,'')===x.wa.replace(/\D/g,''))||(x.negocio&&l.negocio.toLowerCase()===x.negocio.toLowerCase())));
 const blank=()=>({id:crypto.randomUUID(),negocio:'',persona:'',ig:'',wa:'',ciudad:'',nicho:'',cat:'Otros',canal:'WhatsApp',estado:'por_enviar',envio:'',prox:'',variante:'',notas:'',sig:'',msg:'',valor:'',motivo:'',hist:[]});
 /* ---------- Almacenamiento: localStorage + espejo IndexedDB (+ Supabase opcional) ---------- */
@@ -310,7 +311,7 @@ function bind(){const q=$('#q');if(q){q.oninput=e=>{F.q=e.target.value;const p=e
  document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=e=>{e.stopPropagation();navigator.clipboard.writeText(fill(L.find(x=>x.id===b.dataset.copy))).then(()=>toast('Mensaje copiado'))});
  document.querySelectorAll('[data-act]').forEach(b=>b.onclick=e=>{e.stopPropagation();const[a,id]=b.dataset.act.split(':'),l=L.find(x=>x.id===id);snap();if(a==='wrote'){l.envio=today();l.prox=add(RULE[l.estado]||3);log(l,'Seguimiento enviado');toast('Hecho · próximo seguimiento '+fd(l.prox))}else if(a==='end'){l.prox='';log(l,'Seguimiento finalizado');toast('Sin más seguimiento programado')}else{l.prox=add(3);log(l,'Seguimiento pospuesto 3 días')}save();render()});
  document.querySelectorAll('[data-mv]').forEach(s=>s.onchange=()=>{const l=L.find(x=>x.id===s.dataset.mv);if(!s.value)return;snap();setEstado(l,s.value);if(s.value==='ganado'){const v=prompt('Valor del negocio en COP (opcional)');if(v)l.valor=+v.replace(/\D/g,'')||''}save();render()});}
-function openLead(id){const o=id?L.find(x=>x.id===id):null,l=o||blank();
+function openLeadForm(id){const o=id?L.find(x=>x.id===id):null,l=o||blank();
  const i=(k,lb,t,w,ph)=>`<label class="${w||''}">${lb}<input name="${k}" type="${t||'text'}" placeholder="${ph||''}" value="${esc(l[k])}"></label>`,ta=(k,lb)=>`<label class="w">${lb}<textarea name="${k}" rows="2">${esc(l[k])}</textarea></label>`,so=(a,v)=>a.map(x=>`<option ${v===x?'selected':''}>${x}</option>`).join('');
  const nic=[...new Set(L.map(x=>x.nicho).filter(Boolean))],h=[...(l.hist||[])].reverse().slice(0,10);
  const d=$('#dlg');d.innerHTML=`<form class="dlg" method="dialog"><h2>${o?esc(l.negocio):'Nuevo lead'}</h2><div class="f">
@@ -354,7 +355,7 @@ function importJSONText(raw,d){let a;try{a=JSON.parse(raw)}catch(e){return toast
   if(!x.negocio)x.negocio=x.ig||x.wa;log(x,'Lead creado');if(!x.negocio||dup(x)){s++;return}L.push(x);n++});
  save();if(d)d.close();render();toast(n+' agregados'+(s?', '+s+' omitidos (repetidos o vacíos)':''))}
 </script>
-<!-- ===== PIEZA 3/6 · PIPELINE ===== -->
+<!-- ===== PIEZA 3/7 · PIPELINE ===== -->
 <style>
 .pp-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.pp-hd h2{font-size:26px;font-weight:600}.pp-hd small{color:var(--mut)}.pp-ac{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .pp-seg{display:flex;gap:2px;background:var(--card);border-radius:12px;padding:4px;box-shadow:var(--sh)}.pp-seg button{border:0;background:none;border-radius:9px;padding:7px 14px;color:var(--mut);font-weight:500}.pp-seg .on{background:#E8F0FD;color:var(--ac);font-weight:600}
@@ -378,11 +379,11 @@ function pipeV(){
  const P=F.pp?L.filter(l=>lastAct(l)>=add(-F.pp)):L,fm=n=>'$'+(+n||0).toLocaleString('es-CO'),A=P.filter(l=>ACTIVE.includes(l.estado)),won=P.filter(l=>l.estado==='ganado'),V=a=>a.reduce((t,l)=>t+(+l.valor||0),0),
  W={propuesta:.5,conversacion:.2,enviado:.05,aplazado:.05},wt=Math.round(A.reduce((t,l)=>t+(+l.valor||0)*(W[l.estado]||0),0)),
  c=P.filter(l=>!['por_enviar','por_confirmar'].includes(l.estado)),r=P.filter(l=>REPLIED.includes(l.estado)),rt=c.length?Math.round(r.length/c.length*100):0,pct=Math.round(won.length/Math.max(1,won.length+A.length)*100),
- st=A.filter(stale),dd=A.filter(l=>due(l)&&!stale(l)),ok=A.filter(l=>!due(l)&&!stale(l)),
+ st=A.filter(stale),nov=P.filter(l=>['propuesta','ganado'].includes(l.estado)&&!+l.valor).length,dd=A.filter(l=>due(l)&&!stale(l)),ok=A.filter(l=>!due(l)&&!stale(l)),
  DP=[{n:'Estancados',v:st.length,c:'#C0453F'},{n:'Toca seguimiento',v:dd.length,c:'#E39B0B'},{n:'Al día',v:ok.length,c:'#0A5CD6'}],
  at=A.map(l=>({l,s:(due(l)?3:0)+(stale(l)?2:0)+(temp(l)&&temp(l)[0]==='hot'?1:0)})).filter(x=>x.s).sort((a,b)=>b.s-a.s||(+b.l.valor||0)-(+a.l.valor||0)).slice(0,6);
  return `<div class="pp-hd"><div><h2>Pipeline</h2><small>${P.length} leads · ${fm(wt)} ponderado · ${rt}% respuesta</small></div><div class="pp-ac"><div class="pp-seg">${[[0,'Todo'],[7,'7 días'],[30,'30 días'],[90,'90 días']].map(([v,t])=>`<button data-pp="${v}" class="${F.pp===v?'on':''}">${t}</button>`).join('')}</div><button class="btn" data-csv>Exportar CSV</button><button class="btn pri" data-new>+ Nuevo lead</button></div></div>
- <div class="pp-ban"><div class="pp-l"><small>PRONÓSTICO · PONDERADO</small><b>${fm(wt)}</b><span class="pp-pill">${A.length} leads activos</span><small>Valor × probabilidad por etapa</small></div><div><div class="pp-bar"><i style="width:${Math.max(pct,3)}%"></i></div><div class="pp-sp"><span>$0</span><span>${pct}% cerrado</span></div><div class="pp-t"><div><small>Ganado</small><b>${fm(V(won))}</b><small>${won.length} negocios</small></div><div><small>Mejor caso</small><b>${fm(V(A))}</b><small>suma de valores activos</small></div><div><small>Ponderado</small><b>${fm(wt)}</b><small>${P.filter(l=>l.estado==='propuesta').length} propuestas</small></div></div></div></div>
+ <div class="pp-ban"><div class="pp-l"><small>PRONÓSTICO · PONDERADO</small><b>${fm(wt)}</b><span class="pp-pill">${A.length} leads activos</span><small>Valor × probabilidad por etapa</small>${nov?`<small><a href="#" data-fv style="color:#fff;text-decoration:underline">${nov} sin valor · completar</a></small>`:''}</div><div><div class="pp-bar"><i style="width:${Math.max(pct,3)}%"></i></div><div class="pp-sp"><span>$0</span><span>${pct}% cerrado</span></div><div class="pp-t"><div><small>Ganado</small><b>${fm(V(won))}</b><small>${won.length} negocios</small></div><div><small>Mejor caso</small><b>${fm(V(A))}</b><small>suma de valores activos</small></div><div><small>Ponderado</small><b>${fm(wt)}</b><small>${P.filter(l=>l.estado==='propuesta').length} propuestas</small></div></div></div></div>
  <div class="pn pp-board"><div class="ph"><h3>Etapas</h3><small class="mu">Arrastra una tarjeta a otra columna para cambiar su estado</small></div><div class="pipe">${KEYS.map(k=>{const x=P.filter(l=>l.estado===k);return `<div class="col" data-col="${k}"><h3><span style="color:var(--c-${k})">● ${ST[k]}</span><span>${x.length}${V(x)?`<small>${fm(V(x))}</small>`:''}</span></h3>${x.map(l=>`<div class="card" style="border-left-color:var(--c-${k})" draggable="true" data-id="${l.id}" data-open="${l.id}"><b>${esc(l.negocio)}</b><small>${esc(l.nicho)} · ${esc(l.canal)}</small>${+l.valor?`<br><span class="vl">${fm(l.valor)}</span>`:''}${tb(l)}${due(l)?'<br><span class="late">Toca seguimiento</span>':(l.prox&&ACTIVE.includes(l.estado)?`<br><small>${lbl(l)}</small>`:'')}</div>`).join('')}</div>`}).join('')}</div></div>
  <div class="pp-g"><div class="pn"><div class="ph"><h3>Salud del pipeline</h3></div><div class="dn2">${donut(DP,A.length)}<ul>${DP.map(p=>`<li><i style="background:${p.c}"></i>${p.n}<em>${p.v}</em></li>`).join('')}</ul></div></div>
  <div class="pn"><div class="ph"><h3>Qué necesita atención</h3><small class="mu">${at.length} · urgencia × valor</small></div>${at.map(({l})=>`<div class="pp-it" data-open="${l.id}"><i style="background:${due(l)||stale(l)?'#C0453F':'#E39B0B'}"></i><div><b>${esc(l.negocio)}</b><small>${esc(l.sig||l.notas||'')}${l.prox?' · '+lbl(l):''}</small></div><span class="pp-tg ${stale(l)?'':due(l)?'w':'h'}">${stale(l)?'Estancado':due(l)?'Toca hoy':'Caliente'}</span></div>`).join('')||'<p class="empty">Todo al día 🎉</p>'}</div></div>`}
@@ -391,9 +392,9 @@ function pipeBind(){
  document.querySelectorAll('[data-new]').forEach(b=>b.onclick=()=>openLead());
  document.querySelectorAll('[data-csv]').forEach(b=>b.onclick=exportCSV);
  document.querySelectorAll('.card').forEach(c=>c.ondragstart=e=>e.dataTransfer.setData('t',c.dataset.id));
- document.querySelectorAll('.col').forEach(c=>{c.ondragover=e=>{e.preventDefault();c.classList.add('over')};c.ondragleave=()=>c.classList.remove('over');c.ondrop=e=>{e.preventDefault();const l=L.find(x=>x.id===e.dataTransfer.getData('t'));if(l){snap();setEstado(l,c.dataset.col);if(c.dataset.col==='ganado'&&!l.valor){const v=prompt('Valor del negocio en COP (opcional)');if(v)l.valor=+v.replace(/\D/g,'')||''}save();render()}}})}
+ document.querySelectorAll('.col').forEach(c=>{c.ondragover=e=>{e.preventDefault();c.classList.add('over')};c.ondragleave=()=>c.classList.remove('over');c.ondrop=e=>{e.preventDefault();const l=L.find(x=>x.id===e.dataTransfer.getData('t'));if(l){snap();setEstado(l,c.dataset.col);save();render()}}})}
 </script>
-<!-- ===== PIEZA 4/6 · ANÁLISIS ===== -->
+<!-- ===== PIEZA 4/7 · ANÁLISIS ===== -->
 <style>
 .az{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}.az .s3{grid-column:span 3}.az .s4{grid-column:span 4}.az .s5{grid-column:span 5}.az .s7{grid-column:span 7}.az .s12{grid-column:span 12}
 .hero{border-radius:20px;padding:20px;color:#fff;background:radial-gradient(circle at 85% 10%,#6FB1FF66,transparent 45%),linear-gradient(135deg,#0A3FA0,#0A5CD6 55%,#3D8BFF);box-shadow:var(--sh);display:flex;flex-direction:column;justify-content:space-between;min-height:190px}
@@ -447,7 +448,7 @@ function anaBind(){
  document.querySelectorAll('[data-at]').forEach(b=>b.onclick=()=>{F.at=b.dataset.at;render()});
  document.querySelectorAll('[data-new]').forEach(b=>b.onclick=()=>openLead())}
 </script>
-<!-- ===== PIEZA 5/6 · CALENDARIO (seguimientos + reuniones) ===== -->
+<!-- ===== PIEZA 5/7 · CALENDARIO (seguimientos + reuniones) ===== -->
 <style>
 .cl{display:grid;grid-template-columns:320px minmax(0,1fr);gap:14px;align-items:start}.cl>aside{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;min-width:0}.cl>aside>*{min-width:0}
 .cl-main{background:var(--card);border-radius:20px;box-shadow:var(--sh);padding:14px}
@@ -519,7 +520,77 @@ function calBind(){
   meets().forEach(({l,m})=>{if(m.done||!m.f||!m.h)return;const s=mStart(m),e=new Date(s.getTime()+(+m.dur||30)*6e4);r.push('BEGIN:VEVENT','UID:'+m.id+'@showme','DTSTAMP:'+p(today())+'T120000Z','DTSTART:'+q(s),'DTEND:'+q(e),'SUMMARY:'+(m.t||'Reunión')+' · '+l.negocio,'LOCATION:'+(m.lugar||''),'DESCRIPTION:'+String(m.nota||'').replace(/\n/g,' '),'BEGIN:VALARM','TRIGGER:-PT'+(+m.rem||30)+'M','ACTION:DISPLAY','DESCRIPTION:Reunión','END:VALARM','END:VEVENT')});
   r.push('END:VCALENDAR');dl(new Blob([r.join('\r\n')],{type:'text/calendar'}),'calendario-'+today()+'.ics');toast('Calendario exportado')})}
 </script>
-<!-- ===== PIEZA 6/6 · SISTEMA · MODO SUPABASE DIRECTO (menús, buscador, notificaciones, recordatorios, arranque) ===== -->
+<!-- ===== PIEZA 6/7 · PANEL DEL LEAD + PLANTILLAS + VALOR DEL NEGOCIO ===== -->
+<style>
+#lpo{position:fixed;inset:0;background:#0E1B2C66;backdrop-filter:blur(2px);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}#lpo.on{opacity:1;pointer-events:auto}
+#lp{position:fixed;top:0;right:0;bottom:0;width:min(500px,100vw);background:var(--bg);z-index:41;transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;box-shadow:-20px 0 60px #0003}#lp.on{transform:none}
+.lph{display:flex;gap:12px;align-items:center;padding:16px 18px;background:var(--card);border-bottom:1px solid var(--line)}.lph .av{width:46px;height:46px;font-size:18px;flex:0 0 46px}.lph>div{flex:1;min-width:0}.lph b{display:block;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lph small{color:var(--mut)}
+.lpb{overflow:auto;padding:14px 16px 30px;display:grid;gap:12px;align-content:start;flex:1}
+.lpc{background:var(--card);border-radius:16px;padding:14px;box-shadow:var(--sh)}.lpc h4{margin:0 0 10px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;display:flex;justify-content:space-between;align-items:center}
+.lpa{display:flex;gap:8px;flex-wrap:wrap}.lpa .btn{padding:8px 12px;font-size:13px}
+.lpg{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lpg label{font-size:12.5px;color:var(--mut);display:grid;gap:4px}.lpg label.w{grid-column:1/-1}
+.lpc input,.lpc select,.lpc textarea{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--card);color:var(--ink);font:inherit;width:100%;box-sizing:border-box}.lpc textarea{resize:vertical;margin:8px 0}
+.tl{position:relative;padding-left:18px}.tl::before{content:'';position:absolute;left:5px;top:4px;bottom:4px;width:2px;background:var(--line)}.tl>div{position:relative;margin-bottom:10px;font-size:13px}.tl>div::before{content:'';position:absolute;left:-17px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--ac)}.tl small{color:var(--mut);display:block}
+.lpi{display:grid;grid-template-columns:105px 1fr;gap:5px 10px;font-size:13px}.lpi span{color:var(--mut)}.lpi b{font-weight:500;word-break:break-word}
+.nt{display:flex;gap:8px}.nt input{flex:1}.lpm{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:10px;background:#E8F0FD;margin-bottom:6px;cursor:pointer;font-size:13px}.lpm.dn{opacity:.55}
+.vr{display:inline-block;background:#E8F0FD;color:var(--ac);border-radius:6px;padding:1px 7px;margin:2px;cursor:pointer;font-size:12.5px}.tr{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px}.tr input,.tr textarea{width:100%;box-sizing:border-box}
+html.dark .lpm,html.dark .vr{background:#1B2F45}
+</style>
+<script>
+const SET_ID='00000000-0000-0000-0000-000000000001';
+const LPD={};let LP=null;
+const saludo=()=>{const h=new Date().getHours();return h<12?'buenos días':h<19?'buenas tardes':'buenas noches'};
+function fillT(t,l){return String(t||'').replace(/\{nombre\}/g,(l.persona||l.negocio||'').split(' ')[0]).replace(/\{negocio\}/g,l.negocio||'').replace(/\{nicho\}/g,l.nicho||'').replace(/\{ciudad\}/g,(l.ciudad||'').replace(/\s*\(.*\)/,'')).replace(/\{saludo\}/g,saludo())}
+function openLead(id){return id?openPanel(id):openLeadForm()}
+/* ---------- Panel lateral del lead ---------- */
+function openPanel(id){if(!$('#lp')){const o=document.createElement('div');o.id='lpo';o.onclick=closePanel;const p=document.createElement('aside');p.id='lp';document.body.append(o,p)}
+ LP=id;if(typeof closePops==='function')closePops();renderPanel();requestAnimationFrame(()=>{$('#lp').classList.add('on');$('#lpo').classList.add('on')})}
+function closePanel(){LP=null;if($('#lp')){$('#lp').classList.remove('on');$('#lpo').classList.remove('on')}}
+function panelRefresh(){if(!LP)return;const a=document.activeElement;if(a&&a.closest&&a.closest('#lp')&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;renderPanel()}
+function renderPanel(){
+ const l=L.find(x=>x.id===LP),p=$('#lp');if(!l||!p){closePanel();return}
+ const fm=n=>'$'+(+n||0).toLocaleString('es-CO'),I=s=>s?esc(s):'—',
+ tl=[...(l.hist||[]).map((x,i)=>({d:x.d,t:esc(x.t),i})),...(l.reuniones||[]).map(m=>({d:m.f,t:'📅 '+(m.done?'Reunión realizada: ':'Reunión: ')+esc(m.t)+' · '+m.h,i:-1}))].sort((a,b)=>b.d.localeCompare(a.d)||b.i-a.i),
+ ms=(l.reuniones||[]).slice().sort((a,b)=>(b.f+b.h).localeCompare(a.f+a.h)),draft=LPD[l.id]!==undefined?LPD[l.id]:fill(l),ig=igURL(l.ig),wa=waURL(l.wa);
+ p.innerHTML=`<div class="lph"><span class="av">${esc((l.negocio||'?')[0])}</span><div><b>${esc(l.negocio)}</b><small>${esc([l.nicho,l.ciudad].filter(Boolean).join(' · '))}</small></div>${chip(l.estado)}<button class="ib" id="lpx" title="Cerrar (Esc)">✕</button></div>
+ <div class="lpb">
+ <div class="lpc"><div class="lpa">${wa?`<a class="btn pri" target="_blank" rel="noopener" href="${waMsg(l)}">WhatsApp</a>`:''}${ig?`<a class="btn" target="_blank" rel="noopener" href="${ig}">Instagram</a>`:''}<button class="btn" id="lpm">📅 Agendar reunión</button><button class="btn" data-act="wrote:${l.id}">✓ Ya escribí</button><button class="btn" data-act="snz:${l.id}">Posponer 3 días</button><button class="btn" id="lpe">✎ Editar datos</button></div></div>
+ <div class="lpc"><h4>Estado y seguimiento</h4><div class="lpg"><label>Estado<select id="lpst">${KEYS.map(k=>`<option value="${k}" ${l.estado===k?'selected':''}>${ST[k]}</option>`).join('')}</select></label><label>Valor del negocio (COP)<input id="lpvl" type="number" min="0" inputmode="numeric" value="${esc(l.valor)}" placeholder="0"></label><label>Próximo seguimiento<input id="lppx" type="date" value="${esc(l.prox)}"></label><label>Último mensaje<input type="date" value="${esc(l.envio)}" disabled></label></div></div>
+ <div class="lpc"><h4>Mensaje <button class="btn" id="lpmg" style="padding:4px 10px;font-size:12px">Gestionar plantillas</button></h4><select id="lptp"><option value="">Insertar plantilla…</option>${TPL.map((t,i)=>`<option value="${i}">${esc(t[0])}</option>`).join('')}</select><textarea id="lpmsg" rows="4" placeholder="Escribe o elige una plantilla…">${esc(draft)}</textarea><div class="lpa">${wa?'<button class="btn pri" id="lpw">Abrir WhatsApp con este texto</button>':''}${ig?'<button class="btn" id="lpig">Copiar y abrir Instagram</button>':''}<button class="btn" id="lpcp">Copiar</button><button class="btn" id="lpsv">Guardar en el lead</button></div></div>
+ <div class="lpc"><h4>Reuniones <button class="btn" id="lpm2" style="padding:4px 10px;font-size:12px">+ Nueva</button></h4>${ms.map(m=>`<div class="lpm${m.done?' dn':''}" data-md="${l.id}:${m.id}"><span><b>${esc(m.t)}</b> · ${fd(m.f)} ${m.h}</span><span>${m.done?'✓':'›'}</span></div>`).join('')||'<small style="color:var(--mut)">Sin reuniones.</small>'}</div>
+ <div class="lpc"><h4>Nota rápida</h4><div class="nt"><input id="lpnt" placeholder="Qué pasó con este lead…"><button class="btn pri" id="lpna">Agregar</button></div></div>
+ <div class="lpc"><h4>Datos</h4><div class="lpi"><span>Instagram</span><b>${I(l.ig)}</b><span>WhatsApp</span><b>${I(l.wa)}</b><span>Contacto</span><b>${I(l.persona)}</b><span>Canal</span><b>${I(l.canal)}</b><span>Variante</span><b>${I(l.variante)}</b><span>Valor</span><b>${l.valor?fm(l.valor):'—'}</b><span>Qué pasó</span><b>${I(l.notas)}</b><span>Siguiente paso</span><b>${I(l.sig)}</b></div></div>
+ <div class="lpc"><h4>Actividad</h4><div class="tl">${tl.map(x=>`<div>${x.t}<small>${fd(x.d)}</small></div>`).join('')||'<small style="color:var(--mut)">Sin actividad todavía.</small>'}</div></div></div>`;
+ const c=()=>L.find(x=>x.id===LP),upd=fn=>{const x=c();if(!x)return;snap();fn(x);save();render();renderPanel()};
+ $('#lpx').onclick=closePanel;$('#lpe').onclick=()=>{const id=LP;closePanel();openLeadForm(id)};$('#lpm').onclick=$('#lpm2').onclick=()=>openMeeting(LP);$('#lpmg').onclick=openTpl;
+ $('#lpst').onchange=e=>upd(x=>setEstado(x,e.target.value));$('#lpvl').onchange=e=>upd(x=>{x.valor=+e.target.value||''});$('#lppx').onchange=e=>upd(x=>{x.prox=e.target.value});
+ $('#lptp').onchange=e=>{if(e.target.value==='')return;const t=fillT(TPL[e.target.value][1],c());$('#lpmsg').value=t;LPD[LP]=t};
+ $('#lpmsg').oninput=e=>{LPD[LP]=e.target.value};
+ const w=$('#lpw');if(w)w.onclick=()=>{const x=c(),u=waURL(x.wa),t=$('#lpmsg').value.trim();window.open(/wa\.me/.test(u)&&t?u+'?text='+encodeURIComponent(t):u,'_blank','noopener')};
+ const bi=$('#lpig');if(bi)bi.onclick=()=>{navigator.clipboard.writeText($('#lpmsg').value).then(()=>toast('Mensaje copiado, pégalo en Instagram'));window.open(igURL(c().ig),'_blank','noopener')};
+ $('#lpcp').onclick=()=>navigator.clipboard.writeText($('#lpmsg').value).then(()=>toast('Mensaje copiado'));
+ $('#lpsv').onclick=()=>{const t=$('#lpmsg').value.trim();upd(x=>{x.msg=t});delete LPD[LP];toast('Mensaje guardado en el lead')};
+ const na=()=>{const v=$('#lpnt').value.trim();if(!v)return;upd(x=>log(x,v))};$('#lpna').onclick=na;$('#lpnt').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();na()}};
+ bind()}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&LP&&!$('#dlg').open&&!($('#pal')&&$('#pal').open))closePanel()});
+/* ---------- Plantillas de mensajes (se guardan en Supabase) ---------- */
+async function saveSettings(){if(!cfg.url||!cfg.key)return;try{const r=await sb('leads?on_conflict=id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates'},body:JSON.stringify([{id:SET_ID,data:{type:'settings',tpl:TPL.map(t=>[t[0],t[1]])},updated_at:new Date().toISOString()}])});if(!r.ok)throw new Error(await r.text())}catch(e){toast('No se pudieron guardar las plantillas: '+e.message.slice(0,60))}}
+function openTpl(){const d=$('#dlg'),row=(t,i)=>`<div class="tr"><div style="display:flex;gap:8px;margin-bottom:6px"><input class="tn" value="${esc(t[0])}" placeholder="Nombre de la plantilla"><button class="btn" type="button" data-del="${i}" style="color:#C0453F">Eliminar</button></div><textarea class="tt" rows="3" placeholder="Hola {nombre}, …">${esc(t[1])}</textarea></div>`;let last=null;
+ d.innerHTML=`<form class="dlg" method="dialog"><h2>Plantillas de mensajes</h2><p style="margin-top:0;color:var(--mut)">Escribe tus mensajes una vez y úsalos en cualquier lead. Haz clic en una variable para insertarla: ${['{nombre}','{negocio}','{nicho}','{ciudad}','{saludo}'].map(v=>`<span class="vr">${v}</span>`).join('')}</p><div id="trs">${TPL.map(row).join('')}</div><div class="acts"><span><button class="btn" type="button" id="tadd">+ Nueva plantilla</button></span><span style="display:flex;gap:8px"><button class="btn" value="x">Cancelar</button><button class="btn pri" type="button" id="tok">Guardar</button></span></div></form>`;d.showModal();
+ const col=()=>[...d.querySelectorAll('.tr')].map(r=>[r.querySelector('.tn').value.trim(),r.querySelector('.tt').value.trim()]),paint=a=>{$('#trs').innerHTML=a.map(row).join('')};
+ d.onfocusin=e=>{if(e.target.classList&&e.target.classList.contains('tt'))last=e.target};
+ d.onclick=e=>{const v=e.target.closest('.vr');if(v&&last){const s=last.selectionStart||last.value.length;last.value=last.value.slice(0,s)+v.textContent+last.value.slice(s);last.focus()}const x=e.target.closest('[data-del]');if(x){const a=col();a.splice(+x.dataset.del,1);paint(a)}};
+ $('#tadd').onclick=()=>{const a=col();a.push(['Nueva plantilla','']);paint(a)};
+ $('#tok').onclick=()=>{const a=col().filter(t=>t[0]&&t[1]);if(!a.length)return toast('Deja al menos una plantilla con nombre y texto');TPL.length=0;TPL.push(...a);saveSettings();d.onclick=null;d.close();toast('Plantillas guardadas');if(LP)renderPanel()}}
+$('#bTpl').onclick=openTpl;
+/* ---------- Valor del negocio al pasar a Propuesta o Ganado ---------- */
+function askValor(id,chain){const l=L.find(x=>x.id===id),d=$('#dlg');if(!l||+l.valor||d.open)return;
+ d.innerHTML=`<form class="dlg" method="dialog"><h2>¿Cuánto vale este negocio?</h2><p style="margin-top:0;color:var(--mut)"><b>${esc(l.negocio)}</b> está en <b>${ST[l.estado]}</b>. Con el valor, el pronóstico del pipeline deja de salir en $0.</p><div class="f"><label class="w">Valor (COP)<input id="vv" type="number" min="0" inputmode="numeric" placeholder="Ej: 1500000"></label></div><div class="acts"><button class="btn" value="x">Omitir</button><button class="btn pri" type="button" id="vok">Guardar valor</button></div></form>`;d.showModal();$('#vv').focus();
+ const go=()=>{const v=+$('#vv').value;if(!v)return toast('Escribe un valor o pulsa Omitir');snap();l.valor=v;log(l,'Valor del negocio: $'+v.toLocaleString('es-CO'));save();d.close();render();toast('Valor guardado');if(chain){const n=L.find(x=>['propuesta','ganado'].includes(x.estado)&&!+x.valor);if(n)setTimeout(()=>askValor(n.id,true),300)}};
+ $('#vok').onclick=go;$('#vv').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}}}
+document.addEventListener('click',e=>{const f=e.target.closest('[data-fv]');if(!f)return;e.preventDefault();const l=L.find(x=>['propuesta','ganado'].includes(x.estado)&&!+x.valor);if(l)askValor(l.id,true)});
+</script>
+<!-- ===== PIEZA 7/7 · SISTEMA (cierre, modo Supabase directo) (menús, buscador, notificaciones, recordatorios, arranque) ===== -->
 <style>
 .pw{position:relative}
 .pop{position:absolute;right:0;top:calc(100% + 12px);background:var(--card);border-radius:18px;box-shadow:0 18px 50px #0003;padding:8px;width:292px;z-index:30;display:flex;flex-direction:column;gap:2px}.pop[hidden],.pop.wide[hidden]{display:none!important}
@@ -559,6 +630,7 @@ function bellHTML(){const{ms,fu}=bellData(),
  return `<div class="ph"><h3>Notificaciones</h3><span class="cnt">${ms.length+fu.length}</span></div>${ms.length?`<div class="bt">Reuniones próximas</div>${ms.map(mr).join('')}`:''}${fu.length?`<div class="bt">Seguimientos pendientes</div>${fu.slice(0,8).map(fr).join('')}${fu.length>8?`<button class="btn" data-bgo="t" style="margin-top:6px">Ver los ${fu.length} en Leads</button>`:''}`:''}${ms.length+fu.length?'':'<p class="empty">Todo al día 🎉</p>'}<div class="bf"><button class="btn" data-bgo="c">Ver calendario</button><button class="btn" data-bnot>Avisos del navegador</button></div>`}
 function shellRender(){const{ms,fu}=bellData(),n=ms.length+fu.length,b=$('#bdg');b.textContent=n||'';b.style.display=n?'':'none';
  const p=$('#pBell');if(!p.hidden){p.innerHTML=bellHTML();bind()}
+ typeof panelRefresh==='function'&&panelRefresh();
  $('#thl').textContent=document.documentElement.classList.contains('dark')?'Oscuro':'Claro';
  $('#sync').innerHTML=cfg.url&&cfg.key?'<i class="ok"></i>Sincronizado con Supabase':'<i></i>Sin conexión a Supabase'}
 /* ---------- Buscador global (lupa / Ctrl+K / "/") ---------- */
@@ -580,7 +652,7 @@ function palPaint(){document.querySelectorAll('.pi').forEach(el=>el.classList.to
 function palGo(i){const x=palItems[i];if(!x)return;$('#pal').close();x.go()}
 $('#bSrch').onclick=openPal;
 /* ---------- Conexión Supabase (sin respaldos locales) ---------- */
-$('#bSet').onclick=()=>{const d=$('#dlg');d.innerHTML=`<form class="dlg" method="dialog"><h2>Conexión Supabase</h2><p style="margin-top:0;color:var(--mut)">Tus leads y reuniones viven solo en Supabase: no se guardan en este navegador. Cada cambio se envía en segundos y la pantalla se refresca sola cada minuto.</p><div class="f"><label class="w">Project URL<input id="su" placeholder="https://xxxx.supabase.co" value="${esc(cfg.url)}"></label><label class="w">Anon public key<input id="sk" value="${esc(cfg.key)}"></label></div><div class="acts" style="justify-content:flex-start"><button class="btn pri" type="button" id="s1">Guardar conexión</button><button class="btn" type="button" id="s3">Recargar desde Supabase</button><button class="btn" value="cancel">Cerrar</button></div></form>`;d.showModal();
+$('#bSet').onclick=()=>{const d=$('#dlg');d.innerHTML=`<form class="dlg" method="dialog"><h2>Conexión Supabase</h2><p style="margin-top:0;color:var(--mut)">Tus leads, reuniones y plantillas viven solo en Supabase: no se guardan en este navegador. Cada cambio se envía en segundos y la pantalla se refresca sola cada minuto.</p><div class="f"><label class="w">Project URL<input id="su" placeholder="https://xxxx.supabase.co" value="${esc(cfg.url)}"></label><label class="w">Anon public key<input id="sk" value="${esc(cfg.key)}"></label></div><div class="acts" style="justify-content:flex-start"><button class="btn pri" type="button" id="s1">Guardar conexión</button><button class="btn" type="button" id="s3">Recargar desde Supabase</button><button class="btn" value="cancel">Cerrar</button></div></form>`;d.showModal();
  const sv=()=>{cfg.url=$('#su').value.trim();cfg.key=$('#sk').value.trim();saveCfg();shellRender()};$('#s1').onclick=()=>{sv();d.close();pull()};$('#s3').onclick=()=>{sv();pull()}};
 /* ---------- Recordatorios al celular (Gmail, vía Google Apps Script gratis) ---------- */
 const GS=String.raw`const SUPABASE_URL = '__URL__';
@@ -646,7 +718,8 @@ async function syncNow(){
  catch(e){toast('No se pudo guardar en Supabase: '+e.message.slice(0,70))}}
 async function sbLoad(first){
  try{const r=await sb('leads?select=id,data');if(!r.ok)throw new Error(await r.text());const rows=await r.json();
-  L=rows.filter(x=>x.data).map(x=>({...x.data,id:x.data.id||x.id}));L.forEach(l=>{l.ig=normIG(l.ig);l.hist=l.hist||[]});
+  const st=rows.find(x=>x.id===SET_ID);if(st&&st.data&&Array.isArray(st.data.tpl)&&st.data.tpl.length){TPL.length=0;TPL.push(...st.data.tpl)}
+  L=rows.filter(x=>x.data&&x.id!==SET_ID).map(x=>({...x.data,id:x.data.id||x.id}));L.forEach(l=>{l.ig=normIG(l.ig);l.hist=l.hist||[]});
   SB_LAST=new Map(L.map(l=>[l.id,JSON.stringify(l)]));SB_READY=true;SB_DIRTY=false;render()}
  catch(e){toast('No se pudo cargar de Supabase: '+e.message.slice(0,70));if(first){L=[];render()}}}
 async function pull(){await sbLoad(false);toast(L.length+' leads cargados de Supabase')}
@@ -656,7 +729,7 @@ async function load(){
  if(!cfg.url||!cfg.key){L=[];render();toast('Conecta Supabase para ver tus leads');setTimeout(()=>$('#bSet').click(),500);return}
  await sbLoad(true)}
 window.addEventListener('beforeunload',e=>{if(SB_DIRTY){e.preventDefault();e.returnValue=''}});
-const idle=()=>!$('#dlg').open&&!($('#pal')&&$('#pal').open)&&!(document.activeElement&&['q','fe','fc','pq'].includes(document.activeElement.id));
+const idle=()=>!$('#dlg').open&&!($('#pal')&&$('#pal').open)&&!(document.activeElement&&(['q','fe','fc','pq'].includes(document.activeElement.id)||(document.activeElement.closest&&document.activeElement.closest('#lp')&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))));
 setInterval(()=>{if(SB_DIRTY)syncNow();else if(idle())sbLoad(false);notifyDue();notifyMeet()},60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&idle()){if(SB_DIRTY)syncNow();else sbLoad(false);notifyDue();notifyMeet()}});
 $('#bUndo').onclick=undo;
